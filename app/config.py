@@ -1,6 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -8,7 +9,7 @@ class Settings(BaseSettings):
         env_file='.env',
         env_file_encoding='utf-8',
         case_sensitive=False,
-        extra='ignore'
+        extra='ignore',
     )
 
     # Application
@@ -51,10 +52,6 @@ class Settings(BaseSettings):
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
-    """
-    lru_cache гарантирует, что Settings создаётся один раз
-    и переиспользуется при всех вызовах зависимости
-    """
     return Settings()

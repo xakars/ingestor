@@ -1,8 +1,8 @@
 lint: ## Проверить линтерами код в репозитории
-	ruff check ./src
+	ruff check ./app
 
 format: ## Запустить автоформатер
-	ruff check --fix ./src
+	ruff check --fix ./app
 
 list: ## Отобразить список доступных команд и их описание
 	@echo "Cписок доступных команд:"
