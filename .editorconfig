@@ -1,0 +1,27 @@
+# top-most EditorConfig file
+root = true
+
+[src/**]
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+indent_style = space
+
+[/**/__pycache__/**]
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+charset = unset
+indent_style = unset
+indent_size = unset
+
+[*.{js,html,css,scss}]
+indent_size = 2
+
+[*.py]
+indent_size = 4
+
+[{Makefile,**.mk}]
+# Use tabs for indentation (Makefiles require tabs)
+indent_style = tab
