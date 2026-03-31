@@ -5,15 +5,20 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class MetricItem(BaseModel):
-    name: str = Field(..., description="Metric name", example="cpu_usage")
-    value: float = Field(..., description="Metric value", example="45.2")
+    name: str = Field(..., description="Metric name", json_schema_extra={"example":"cpu_usage"})
+    value: float = Field(..., description="Metric value", examples=[45.2, 1024.0, 0.95])
     tags: dict[str, str] = Field(default_factory=dict, description="Extra tags")
 
 
 class MetricsPayload(BaseModel):
     device_id: UUID = Field(..., description="Uniq device id")
-    timestamp: int = Field(..., description="Unix timestamp (UTC)", example="1774964804")
-    metrics: list[MetricItem] = Field(..., description="list of metrics")
+    timestamp: int = Field(..., description="Unix timestamp (UTC)", json_schema_extra={"example":"1774964804"})
+    metrics: list[MetricItem] = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="list of metrics"
+    )
 
     @field_validator("device_id")
     @classmethod
@@ -44,7 +49,7 @@ class MetricsPayload(BaseModel):
 
 
 class MetricResponse(BaseModel):
-    status: str = Field(example="accepted")
-    request_id: str = Field(example="req-abc123def456")
-    metrics_count: int = Field(example=2)
-    timestamp: str = Field(example="2024-05-24T10:30:00.000Z")
+    status: str = Field(json_schema_extra={"example": "accepted"})
+    request_id: str = Field(json_schema_extra={"example": "req-abc123def456"})
+    metrics_count: int = Field(json_schema_extra={"example": "2"})
+    timestamp: str = Field(json_schema_extra={"example": "2024-05-24T10:30:00.000Z"})

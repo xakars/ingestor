@@ -26,10 +26,10 @@ async def lifespan(app: FastAPI):
         acks=settings.KAFKA_ACKS,
         compression_type=settings.KAFKA_COMPRESSION,
     )
-#    await app.state.kafka_service.start()
+    await app.state.kafka_service.start()
     yield
     await app.state.redis.aclose()
-    # await app.state.kafka_service.stop()
+    await app.state.kafka_service.stop()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -46,8 +46,8 @@ async def health_ready():
     try:
         r = app.state.redis
         await r.ping()
-        # if not app.state.kafka_service._started:
-        #     raise Exception("Kafka producer is not started")
+        if not app.state.kafka_service._started:
+            raise Exception("Kafka producer is not started")
         return {"status": "ready", "redis": "ok", "kafka": "ok"}
     except Exception:
         return JSONResponse(
