@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+
 import redis.asyncio as redis
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
+
+from app.services.kafka_producer import KafkaProducerService
 
 from .api.v1.metrics import metric_router
 from .config import get_settings
@@ -14,10 +17,19 @@ async def lifespan(app: FastAPI):
     app.state.redis = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
-        decode_responses=True
+        decode_responses=True,
     )
+
+    app.state.kafka_service = KafkaProducerService(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP,
+        topic=settings.KAFKA_TOPIC,
+        acks=settings.KAFKA_ACKS,
+        compression_type=settings.KAFKA_COMPRESSION,
+    )
+    await app.state.kafka_service.start()
     yield
     await app.state.redis.aclose()
+    await app.state.kafka_service.stop()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -32,10 +44,13 @@ async def health():
 @app.get("/health/ready")
 async def health_ready():
     try:
-        await app.state.redis.ping()
-        return {"status": "ready", "redis": "ok"}
+        r = app.state.redis
+        await r.ping()
+        if not app.state.kafka_service._started:
+            raise Exception("Kafka producer is not started")
+        return {"status": "ready", "redis": "ok", "kafka": "ok"}
     except Exception:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "not ready", "redis": "unavailable"}
+            content={"status": "not ready", "redis": "unavailable"},
         )

@@ -1,13 +1,17 @@
 services:
   ingestor:
     build: .
-    container_name: ingestor
     ports:
       - "8001:8001"
     env_file:
       - .env
+    environment:
+      - REDIS_HOST=redis
+      - KAFKA_BOOTSTRAP=kafka:9092
     depends_on:
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     networks:
       - backend
@@ -16,7 +20,7 @@ services:
     image: redis:8.6.2-alpine
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT}:6379"
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -27,9 +31,36 @@ services:
     networks:
       - backend
 
+  kafka:
+    image: apache/kafka:4.0.2
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
 
 volumes:
   redis_data:
+  kafka_data:
