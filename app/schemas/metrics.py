@@ -5,19 +5,19 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class MetricItem(BaseModel):
-    name: str = Field(..., description="Metric name", json_schema_extra={"example":"cpu_usage"})
+    name: str = Field(..., description="Metric name", examples=["cpu_usage", "memory_free", "disk_io"])
     value: float = Field(..., description="Metric value", examples=[45.2, 1024.0, 0.95])
     tags: dict[str, str] = Field(default_factory=dict, description="Extra tags")
 
 
 class MetricsPayload(BaseModel):
     device_id: UUID = Field(..., description="Uniq device id")
-    timestamp: int = Field(..., description="Unix timestamp (UTC)", json_schema_extra={"example":"1774964804"})
+    timestamp: int = Field(..., description="Unix timestamp (UTC)", examples=[1774964804])
     metrics: list[MetricItem] = Field(
         ...,
         min_length=1,
         max_length=100,
-        description="list of metrics"
+        description="list of metrics",
     )
 
     @field_validator("device_id")
