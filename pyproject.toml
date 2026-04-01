@@ -9,7 +9,7 @@ dependencies = [
     "fastapi[standard]>=0.135.2",
     "pydantic-settings>=2.13.1",
     "pyjwt>=2.12.1",
-    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
     "redis>=7.4.0",
 ]
 [project.optional-dependencies]
