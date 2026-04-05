@@ -1,12 +1,13 @@
-from fastapi import Request, HTTPException, status
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-from app.services.rate_limiter import RateLimiter
-from app.utils.jwt import decode_jwt
-from app.config import get_settings
 import logging
 import time
 
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.config import get_settings
+from app.services.rate_limiter import RateLimiter
+from app.utils.jwt import decode_jwt
 
 logger = logging.getLogger("ingestor")
 settings = get_settings()
@@ -18,7 +19,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         app,
         limit: int = 100,
         window: int = 60,
-        exclude_paths: list = None
+        exclude_paths: list = None,
     ):
         super().__init__(app)
         self.limit = limit
@@ -38,34 +39,34 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         allowed = await rate_limiter.check_fixed_window(
             key=key,
             limit=self.limit,
-            window=self.window
+            window=self.window,
         )
         if not allowed:
             # Получаем информацию для заголовков
             remaining = await rate_limiter.get_remaining(key, self.limit, self.window)
             reset_time = await rate_limiter.get_reset_time(key)
             logger.warning(
-                f"Rate limit exceeded",
+                "Rate limit exceeded",
                 extra={
                     "user_id": user_id,
                     "path": request.url.path,
                     "key": key,
                     "remaining": remaining,
-                    "reset_time": reset_time
-                }
+                    "reset_time": reset_time,
+                },
             )
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content={
                     "detail": "Rate limit exceeded. Try again later.",
-                    "retry_after": reset_time
+                    "retry_after": reset_time,
                 },
                 headers={
                     "X-RateLimit-Limit": str(self.limit),
                     "X-RateLimit-Remaining": str(remaining),
                     "X-RateLimit-Reset": str(reset_time),
-                    "Retry-After": str(reset_time)
-                }
+                    "Retry-After": str(reset_time),
+                },
             )
 
         response = await call_next(request)
@@ -78,13 +79,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Логирование
         duration_ms = (time.time() - start_time) * 1000
         logger.debug(
-            f"Rate limit check passed",
+            "Rate limit check passed",
             extra={
                 "user_id": user_id,
                 "path": request.url.path,
                 "remaining": remaining,
-                "duration_ms": round(duration_ms, 2)
-            }
+                "duration_ms": round(duration_ms, 2),
+            },
         )
         return response
 

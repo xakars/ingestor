@@ -1,6 +1,5 @@
+
 import redis.asyncio as redis
-from typing import Optional
-import logging
 
 
 class RateLimiter:
@@ -8,12 +7,10 @@ class RateLimiter:
         local key = KEYS[1]
         local limit = tonumber(ARGV[1])
         local window = tonumber(ARGV[2])
-        
         local current = redis.call('INCR', key)
         if current == 1 then
             redis.call('EXPIRE', key, window)
-        end
-        
+        end 
         if current > limit then
             return 0
         else
@@ -42,11 +39,11 @@ class RateLimiter:
         self,
         key: str,
         limit: int = 100,
-        window: int = 60
+        window: int = 60,
     ) -> bool:
         result = await self._fixed_script(
             keys=[key],
-            args=[limit, window]
+            args=[limit, window],
         )
         return result == 1
 
@@ -54,13 +51,13 @@ class RateLimiter:
         self,
         key: str,
         limit: int = 100,
-        window: int = 60
+        window: int = 60,
     ) -> bool:
         import time
         now = time.time()
         result = await self._sliding_script(
             keys=[key],
-            args=[limit, window, now]
+            args=[limit, window, now],
         )
         return result == 1
 
@@ -68,7 +65,7 @@ class RateLimiter:
         self,
         key: str,
         limit: int = 100,
-        window: int = 60
+        window: int = 60,
     ) -> int:
         current = await self.redis.get(key)
         if current is None:

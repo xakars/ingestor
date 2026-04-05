@@ -4,10 +4,10 @@ import redis.asyncio as redis
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 
-from app.services.kafka_producer import KafkaProducerService
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.services.kafka_producer import KafkaProducerService
 from app.services.rate_limiter import RateLimiter
-from app.dependencies import get_redis
+
 from .api.v1.metrics import metric_router
 from .config import get_settings
 
@@ -41,7 +41,7 @@ app.add_middleware(
     RateLimitMiddleware,
     limit=100,
     window=60,
-    exclude_paths=['/health/live', '/health/ready', '/metrics']
+    exclude_paths=['/health/live', '/health/ready', '/metrics'],
 )
 
 app.include_router(metric_router)
