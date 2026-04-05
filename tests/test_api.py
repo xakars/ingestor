@@ -12,7 +12,7 @@ client = TestClient(app)
 @pytest.fixture
 def valid_token():
     """Фикстура для JWT токена"""
-    return "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoibW9ja2VkX2FkbWluIiwiZW1haWwiOiJ4YWtAZ21haWwuY29tIiwiaXNfYWN0aXZlIjp0cnVlLCJleHAiOjE3NzUwMTQxOTksImlhdCI6MTc3NTAxMjM5OX0.RNlXzG3k3nBpAEWv4-p3jol6eaX2OCRRkCIWc68gMMk"
+    return "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoibW9ja2VkX2FkbWluIiwiZW1haWwiOiJ4YWtAZ21haWwuY29tIiwiaXNfYWN0aXZlIjp0cnVlLCJleHAiOjE3NzUzOTk5NjAsImlhdCI6MTc3NTM5ODE2MH0.oqgG-z87hQgt7wiBtMdzWd0DSYdNan45K-o685Uawgs"
 
 
 @pytest.fixture
@@ -48,3 +48,17 @@ def test_invalid_token(valid_payload):
         headers={"Authorization": "Bearer invalid_token"}
     )
     assert response.status_code == 401
+
+
+def test_rate_limit(valid_token, valid_payload):
+    """Тест срабатывания Rate Limiting"""
+    # Отправить 101 запрос
+    for i in range(101):
+        response = client.post(
+            "/api/v1/metrics",
+            json=valid_payload,
+            headers={"Authorization": valid_token}
+        )
+    # 101-й должен получить 429
+    assert response.status_code == 429
+    assert "Rate limit" in response.json()["detail"]

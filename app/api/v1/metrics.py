@@ -41,7 +41,7 @@ class TokenInfo(BaseModel):
 @metric_router.post("/auth/login", response_model=TokenInfo)
 async def get_mocked_jwt():
     jwt_payload = {
-        "user": "mocked_admin",
+        "user_id": "mocked_admin",
         "email": "xak@gmail.com",
         "is_active": True,
     }

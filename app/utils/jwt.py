@@ -32,7 +32,7 @@ def decode_jwt(
     encoded: str | bytes,
     secret: str = settings.JWT_SECRET_KEY,
     algorithm: str = settings.JWT_ALGORITHM,
-):
+) -> dict | None:
     try:
         decoded = jwt.decode(
             encoded,
