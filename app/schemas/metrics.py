@@ -19,9 +19,19 @@ class MetricItem(BaseSchema):
     tags: dict[str, str] = Field(default_factory=dict, description="Extra tags")
 
 
-class MetricsPayload(BaseModel):
+class MetricsPayload(BaseSchema):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "timestamp": 1712405492,
+                "metrics": [{"name": "cpu", "value": 10.5}],
+            }
+        }
+    )
     device_id: UUID = Field(..., description="Uniq device id")
     timestamp: int = Field(..., description="Unix timestamp (UTC)", examples=[1775405495])
+
     metrics: list[MetricItem] = Field(
         ...,
         min_length=1,
@@ -55,16 +65,6 @@ class MetricsPayload(BaseModel):
                 f'Now: {current_time}, Given: {v}',
             )
         return v
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                "timestamp": 1712405492,
-                "metrics": [{"name": "cpu", "value": 10.5}]
-            }
-        }
-    )
 
 
 class MetricResponse(BaseModel):
