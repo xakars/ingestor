@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BaseSchema(BaseModel):
@@ -16,7 +16,11 @@ class BaseSchema(BaseModel):
 class MetricItem(BaseSchema):
     name: str = Field(..., description="Metric name", examples=["cpu_usage", "memory_free", "disk_io"])
     value: float = Field(..., description="Metric value", examples=[45.2, 1024.0, 0.95])
-    tags: dict[str, str] = Field(default_factory=dict, description="Extra tags")
+    tags: dict[str, str] = Field(
+        default_factory=dict,
+        description="Extra tags",
+        examples=[{"host": "server-01", "region": "eu-west"}],
+    )
 
 
 class MetricsPayload(BaseSchema):
@@ -26,8 +30,8 @@ class MetricsPayload(BaseSchema):
                 "device_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                 "timestamp": 1712405492,
                 "metrics": [{"name": "cpu", "value": 10.5}],
-            }
-        }
+            },
+        },
     )
     device_id: UUID = Field(..., description="Uniq device id")
     timestamp: int = Field(..., description="Unix timestamp (UTC)", examples=[1775405495])
