@@ -33,7 +33,7 @@ class MetricsPayload(BaseSchema):
             },
         },
     )
-    device_id: UUID = Field(..., description="Uniq device id")
+    device_id: str = Field(..., description="Uniq device id")
     timestamp: int = Field(..., description="Unix timestamp (UTC)", examples=[1775405495])
 
     metrics: list[MetricItem] = Field(
@@ -45,9 +45,15 @@ class MetricsPayload(BaseSchema):
 
     @field_validator("device_id")
     @classmethod
-    def validate_device_id(cls, v: UUID) -> UUID:
-        if v.version != 4:  # noqa: PLR2004
+    def validate_device_id(cls, v: str) -> str:
+        try:
+            uuid_obj = UUID(v)
+        except ValueError:
+            raise ValueError("device_id must be a valid UUID string")
+
+        if uuid_obj.version != 4:  # noqa: PLR2004
             raise ValueError("device_id must be a valid UUID v4")
+
         return v
 
     @field_validator("timestamp")
@@ -71,8 +77,37 @@ class MetricsPayload(BaseSchema):
         return v
 
 
-class MetricResponse(BaseModel):
-    status: str = Field(json_schema_extra={"example": "accepted"})
-    request_id: str = Field(json_schema_extra={"example": "req-abc123def456"})
-    metrics_count: int = Field(json_schema_extra={"example": "2"})
-    timestamp: str = Field(json_schema_extra={"example": "2024-05-24T10:30:00.000Z"})
+class MetricsResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'status': 'accepted',
+                'request_id': 'req-abc123',
+                'metrics_count': 2,
+                'timestamp': '2024-05-24T10:30:00.000Z',
+            },
+        },
+    )
+
+    status: str = Field(
+        ...,
+        description="Processing status",
+        examples=["accepted", "pending"],
+    )
+
+    request_id: str = Field(
+        ...,
+        description="Unique request ID for tracing and debugging",
+        examples=["req-abc123def456"],
+    )
+
+    metrics_count: int = Field(
+        ...,
+        description="Number of successfully received metrics",
+        examples=[2, 10, 50],
+    )
+
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        description="Request processing timestamp in ISO 8601 format",
+    )
