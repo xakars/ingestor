@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
@@ -27,6 +28,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.exclude_paths = exclude_paths or ['/health/live', '/health/ready', '/metrics']
 
     async def dispatch(self, request: Request, call_next):
+        request_id = f"req-{uuid.uuid4()}"
+        request.state.request_id = request_id
         rate_limiter: RateLimiter = request.app.state.rate_limiter
         # Пропускаем исключённые пути
         if any(request.url.path.startswith(path) for path in self.exclude_paths):
@@ -76,6 +79,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response.headers["X-RateLimit-Limit"] = str(self.limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         response.headers["X-RateLimit-Reset"] = str(reset_time)
+        response.headers["X-Request-ID"] = request_id
         # Логирование
         duration_ms = (time.time() - start_time) * 1000
         logger.debug(
