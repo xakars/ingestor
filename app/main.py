@@ -12,30 +12,37 @@ from .api.v1.metrics import metric_router
 from .config import get_settings
 
 settings = get_settings()
+kafka_service: KafkaProducerService | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global kafka_service
+
     app.state.redis = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         decode_responses=True,
     )
 
-    app.state.kafka_service = KafkaProducerService(
+    kafka_service = KafkaProducerService(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP,
         topic=settings.KAFKA_TOPIC,
         acks=settings.KAFKA_ACKS,
         compression_type=settings.KAFKA_COMPRESSION,
+        dlq_topic="raw.metrics.dlq",
     )
+    await kafka_service.start()
+    app.state.kafka_service = kafka_service
+
     app.state.rate_limiter = RateLimiter(redis_client=app.state.redis)
-    await app.state.kafka_service.start()
     yield
     await app.state.redis.aclose()
-    await app.state.kafka_service.stop()
+    if kafka_service:
+        await kafka_service.stop()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="Nexus Ingestor API", lifespan=lifespan)
 
 app.add_middleware(
     RateLimitMiddleware,

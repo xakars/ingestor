@@ -1,7 +1,7 @@
 from fastapi import Request
 
 
-def get_kafka(request: Request):
+def get_kafka_producer(request: Request):
     return request.app.state.kafka_service
 
 
