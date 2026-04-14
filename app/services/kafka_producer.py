@@ -1,191 +1,156 @@
 import json
 import logging
-from typing import Any, Optional
 
 from aiokafka import AIOKafkaProducer
-from aiokafka.errors import KafkaError
+from aiokafka.errors import KafkaError, LeaderNotAvailableError, NotLeaderForPartitionError
 
-from app.config import get_settings
+from app.services.kafka_circuit_breaker import KafkaCircuitBreaker
+from app.services.kafka_dlq import KafkaDLQ
+from app.services.kafka_retry import RetryConfig, retry_with_backoff
 
 logger = logging.getLogger("ingestor")
-settings = get_settings()
 
 
 class KafkaProducerService:
-    """
-    Сервис для отправки сообщений в Kafka
-
-    Обеспечивает:
-    - Надёжную доставку (acks='all')
-    - Retry логику при ошибках
-    - Сериализацию данных
-    - Мониторинг отправки
-    """
-
     def __init__(
         self,
         bootstrap_servers: str,
         topic: str,
+        dlq_topic: str = "raw.metrics.dlq",
         acks: str = 'all',
         compression_type: str = 'gzip',
     ):
         self.bootstrap_servers = bootstrap_servers
         self.topic = topic
+        self.dql_topic = dlq_topic
         self.acks = acks
         self.compression_type = compression_type
-        self._producer: Optional[AIOKafkaProducer] = None
+        self._producer: AIOKafkaProducer | None = None
+        self._dlq: KafkaDLQ | None = None
+        self._circuit_breaker = KafkaCircuitBreaker(
+            failure_threshold=5,
+            recovery_timeout=30,
+        )
         self._started = False
 
-    async def start(self):
-        """
-        Запуск producer
+        self._send_count = 0
+        self._error_count = 0
+        self._dlq_count = 0
 
-        Вызывается один раз при старте приложения
-        """
+    async def start(self):
         if self._started:
             return
 
         self._producer = AIOKafkaProducer(
             bootstrap_servers=self.bootstrap_servers,
             acks=self.acks,
+            # retries=self.retries,
             request_timeout_ms=30000,
             retry_backoff_ms=1000,
             compression_type=self.compression_type,
-
-            # Настройки батчинга
-            max_batch_size=16384,  # 16KB макс размер батча
-            linger_ms=10,  # Ждать 10мс для заполнения батча
-
-
+            max_batch_size=16384,
+            linger_ms=10,
             enable_idempotence=True,
-
-
-            # Сериализация
             key_serializer=lambda k: k.encode('utf-8') if k else None,
             value_serializer=lambda v: v.encode('utf-8') if isinstance(v, str) else json.dumps(v).encode('utf-8'),
         )
-
         await self._producer.start()
-        self._started = True
 
-        logger.info(
-            "Kafka producer started",
-            extra={
-                "bootstrap_servers": self.bootstrap_servers,
-                "topic": self.topic,
-                "acks": self.acks,
-            },
-        )
+        # DLQ producer
+        self._dlq = KafkaDLQ(self.bootstrap_servers, self.dql_topic)
+        await self._dlq.start()
+        self._started = True
+        logger.info("Kafka producer service started")
 
     async def stop(self):
-        """
-        Остановка producer
-
-        Вызывается при shutdown приложения
-        """
         if self._producer and self._started:
             await self._producer.stop()
-            self._started = False
-            logger.info("Kafka producer stopped")
+        if self._dlq:
+            await self._dlq.stop()
+        self._started = False
+        logger.info("Kafka producer service stopped")
 
-    async def send_message(
+    async def send_metrics(
         self,
-        key: str,
-        value: dict[str, Any],
-        headers: Optional[dict[str, str]] = None,
+        device_id: str,
+        metrics_data: dict,
+        headers: dict[str, str] | None = None,
     ) -> bool:
-        """
-        Отправка одного сообщения в Kafka
+        if not self._circuit_breaker.can_execute():
+            logger.warning(
+                "Circuit breaker OPEN, sending to DLQ",
+                extra={"device_id": device_id},
+            )
+            await self._send_to_dlq(device_id, metrics_data, "Circuit breaker open")
 
-        Args:
-            key: Partition key (для порядка сообщений)
-            value: Данные сообщения (dict)
-            headers: Опциональные заголовки
+            self._error_count += 1
+            return False
 
-        Returns:
-            bool: True если успешно отправлено
-
-        Raises:
-            KafkaError: Если отправка не удалась после retry
-        """
-        if not self._started:
-            raise KafkaError("Producer not started")
-
-        try:
-            # Формируем заголовки
-            kafka_headers = []
-            if headers:
-                for k, v in headers.items():
-                    kafka_headers.append((k, v.encode('utf-8')))
-
-            # Отправляем сообщение
-            await self._producer.send_and_wait(
+        async def _send():
+            return await self._producer.send_and_wait(
                 topic=self.topic,
-                key=key,
-                value=value,
-                headers=kafka_headers,
+                key=device_id,
+                value=metrics_data,
+                headers=[(k, v.encode('utf-8')) for k, v in (headers or {}).items()],
             )
 
+        try:
+            await retry_with_backoff(
+                _send,
+                config=RetryConfig(max_retries=3, base_delay=1.0),
+                retryable_exceptions=(LeaderNotAvailableError, NotLeaderForPartitionError),
+            )
+
+            self._circuit_breaker.record_success()
+
             logger.debug(
-                "Message sent to Kafka",
+                f"Metrics sent to Kafka",
                 extra={
+                    "device_id": device_id,
                     "topic": self.topic,
-                    "key": key,
-                    "headers": headers,
+                    "metrics_count": len(metrics_data.get("metrics", [])),
                 },
             )
 
             return True
 
         except KafkaError as e:
+            self._circuit_breaker.record_failure()
+            self._error_count += 1
             logger.error(
-                f"Failed to send message to Kafka: {e}",
+                f"Failed to send metrics to Kafka: {e}",
                 extra={
+                    "device_id": device_id,
                     "topic": self.topic,
-                    "key": key,
                     "error": str(e),
                 },
             )
-            raise
 
-    async def send_message_batch(
-        self,
-        messages: list,
-    ) -> dict[str, Any]:
-        """
-        Отправка батча сообщений
+            await self._send_to_dlq(device_id, metrics_data, str(e))
+            return False
 
-        Args:
-            messages: Список сообщений [{"key": str, "value": dict, "headers": dict}]
+    async def _send_to_dlq(self, device_id: str, metrics_data: dict, error: str):
+        """Отправка в Dead Letter Queue"""
+        try:
+            await self._dlq.send_to_dlq(
+                original_topic=self.topic,
+                key=device_id,
+                value=metrics_data,
+                error=error,
+                retry_count=self.retries,
+            )
+            self._dlq_count += 1
+        except Exception as e:
+            logger.critical(
+                f"DLQ failed: {e}",
+                extra={"device_id": device_id, "error": str(e)},
+            )
 
-        Returns:
-            Dict со статистикой отправки
-        """
-        if not self._started:
-            raise KafkaError("Producer not started")
-
-        success_count = 0
-        failed_count = 0
-        errors = []
-
-        for msg in messages:
-            try:
-                await self.send_message(
-                    key=msg["key"],
-                    value=msg["value"],
-                    headers=msg.get("headers"),
-                )
-                success_count += 1
-            except KafkaError as e:
-                failed_count += 1
-                errors.append({
-                    "key": msg["key"],
-                    "error": str(e),
-                })
-
+    def get_stats(self) -> dict:
         return {
-            "total": len(messages),
-            "success": success_count,
-            "failed": failed_count,
-            "errors": errors,
+            "send_count": self._send_count,
+            "error_count": self._error_count,
+            "dlq_count": self._dlq_count,
+            "error_rate": self._error_count / max(self._send_count, 1),
+            "circuit_breaker": self._circuit_breaker.get_state(),
         }
