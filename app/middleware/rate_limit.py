@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import get_settings
 from app.services.rate_limiter import RateLimiter
-from app.utils.jwt import decode_jwt
+from app.utils.jwt import decode_token
 
 logger = logging.getLogger("ingestor")
 settings = get_settings()
@@ -101,7 +101,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
-            payload = decode_jwt(token)
+            payload = decode_token(token)
             if payload and "user_id" in payload:
                 return f"user_{payload.get('user_id')}"
         # Fallback на IP

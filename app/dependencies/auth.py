@@ -1,9 +1,12 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.utils.jwt import decode_token
-from typing import Optional
-from pydantic import BaseModel
 import logging
+from typing import Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
+
+from app.utils.jwt import decode_token
+
 logger = logging.getLogger("ingestor")
 security = HTTPBearer()
 
@@ -23,7 +26,7 @@ class TokenPair(BaseModel):
 
 
 async def get_current_user(
-    creds: HTTPAuthorizationCredentials = Depends(security)
+    creds: HTTPAuthorizationCredentials = Depends(security),
 ) -> TokenData:
 
     token = creds.credentials
@@ -50,5 +53,5 @@ async def get_current_user(
         user_id=user_id,
         email=email,
         role=role,
-        permissions=permissions
+        permissions=permissions,
     )
