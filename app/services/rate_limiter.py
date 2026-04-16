@@ -54,10 +54,11 @@ class RateLimiter:
         window: int = 60,
     ) -> bool:
         import time
-        now = time.time()
+        now = int(time.time() * 1_000_000)
+        window_ms = window * 1_000_000
         result = await self._sliding_script(
             keys=[key],
-            args=[limit, window, now],
+            args=[limit, window_ms, now],
         )
         return result == 1
 
@@ -67,11 +68,16 @@ class RateLimiter:
         limit: int = 100,
         window: int = 60,
     ) -> int:
-        current = await self.redis.get(key)
-        if current is None:
-            return limit
-        return max(0, limit - int(current))
+        import time
+        now = time.time()
+        await self.redis.zremrangebyscore(key, 0, now - window)
+        current = await self.redis.zcard(key)
+        return max(0, limit - current)
 
     async def get_reset_time(self, key: str) -> int:
+        oldest = await self.redis.zrange(key, 0, 0, withscores=True)
+        if not oldest:
+            return 0
+        oldest_timestamp = oldest[0][1]
         ttl = await self.redis.ttl(key)
         return max(0, ttl)

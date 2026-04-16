@@ -39,7 +39,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         user_id = await self._get_user_id(request)
         key = f"rl:{user_id}:{request.url.path}"
         # Проверяем лимит
-        allowed = await rate_limiter.check_fixed_window(
+        allowed = await rate_limiter.check_sliding_window(
             key=key,
             limit=self.limit,
             window=self.window,
