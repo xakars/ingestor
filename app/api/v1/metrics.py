@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, Depends, Request, status
 
 from app.dependencies.services import get_kafka_producer
+from app.dependencies.auth import get_current_user, TokenData
 from app.schemas.metrics import MetricsPayload, MetricsResponse
 from app.services.kafka_producer import KafkaProducerService
 
@@ -21,6 +22,7 @@ metric_router = APIRouter(prefix="/api/v1", tags=["Metric API"])
 async def ingest_metrics(
     payload: MetricsPayload,
     request: Request,
+    user: TokenData = Depends(get_current_user),
     producer: KafkaProducerService = Depends(get_kafka_producer),
 
 ):
