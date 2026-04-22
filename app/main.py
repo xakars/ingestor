@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
-from fastapi import FastAPI, status
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, status
 
 from app.api.v1.auth import auth_router
 from app.api.v1.metrics import metric_router
+from app.dependencies.redis import get_redis_client, get_redis_pool, shutdown_redis_pool
+from app.dependencies.services import get_kafka_producer
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.kafka_producer import KafkaProducerService
 from app.services.rate_limiter import RateLimiter
@@ -23,7 +24,9 @@ async def lifespan(app: FastAPI):
     app.state.redis = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
+        password=settings.REDIS_PASSWORD,
         decode_responses=True,
+        connection_pool=await get_redis_pool(),
     )
 
     kafka_service = KafkaProducerService(
@@ -38,7 +41,7 @@ async def lifespan(app: FastAPI):
 
     app.state.rate_limiter = RateLimiter(redis_client=app.state.redis)
     yield
-    await app.state.redis.aclose()
+    await shutdown_redis_pool()
     if kafka_service:
         await kafka_service.stop()
 
@@ -62,15 +65,22 @@ async def health():
 
 
 @app.get("/health/ready")
-async def health_ready():
+async def health_ready(
+    redis_client: redis.Redis = Depends(get_redis_client),
+    producer: KafkaProducerService = Depends(get_kafka_producer),
+):
     try:
-        r = app.state.redis
-        await r.ping()
-        if not app.state.kafka_service._started:
-            raise Exception("Kafka producer is not started")
-        return {"status": "ready", "redis": "ok", "kafka": "ok"}
+        await redis_client.ping()
+        redis_status = "ok"
     except Exception:
-        return JSONResponse(
+        redis_status = "unavailable"
+
+    kafka_status = "ok" if producer._started else "unavailable"
+
+    if redis_status != "ok" or kafka_status != "ok":
+        raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "not ready", "redis": "unavailable"},
+            detail={"status": "not ready", "redis": redis_status, "kafka": kafka_status},
         )
+
+    return {"status": "ready", "redis": redis_status, "kafka": kafka_status}

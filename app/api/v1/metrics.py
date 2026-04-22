@@ -3,8 +3,8 @@ import logging
 
 from fastapi import APIRouter, Depends, Request, status
 
+from app.dependencies.auth import TokenData, get_current_user
 from app.dependencies.services import get_kafka_producer
-from app.dependencies.auth import get_current_user, TokenData
 from app.schemas.metrics import MetricsPayload, MetricsResponse
 from app.services.kafka_producer import KafkaProducerService
 
