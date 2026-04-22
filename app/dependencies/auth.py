@@ -39,7 +39,7 @@ async def get_current_user(
     payload = decode_token(token, expected_type="access")
 
     if payload is None:
-        raise
+        raise credentials_exception
 
     user_id: str = payload.get("sub")
     email: str = payload.get("email")
