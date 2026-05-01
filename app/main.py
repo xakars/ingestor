@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException, status
 
 from app.api.v1.auth import auth_router
 from app.api.v1.metrics import metric_router
-from app.dependencies.redis import get_redis_client, get_redis_pool, shutdown_redis_pool
+from app.dependencies.redis import get_redis_client, get_redis_pool
 from app.dependencies.services import get_kafka_producer
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.kafka_producer import KafkaProducerService
@@ -21,12 +21,11 @@ kafka_service: KafkaProducerService | None = None
 async def lifespan(app: FastAPI):
     global kafka_service
 
+    pool = get_redis_pool()
+
     app.state.redis = redis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        password=settings.REDIS_PASSWORD,
-        decode_responses=True,
-        connection_pool=await get_redis_pool(),
+        connection_pool=pool,
+        decode_responses=False,
     )
 
     kafka_service = KafkaProducerService(
@@ -41,7 +40,7 @@ async def lifespan(app: FastAPI):
 
     app.state.rate_limiter = RateLimiter(redis_client=app.state.redis)
     yield
-    await shutdown_redis_pool()
+    await pool.disconnect()
     if kafka_service:
         await kafka_service.stop()
 
