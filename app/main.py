@@ -6,11 +6,10 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from app.api.v1.auth import auth_router
 from app.api.v1.metrics import metric_router
 from app.dependencies.redis import get_redis_pool
-from app.dependencies.services import get_kafka_producer
+from app.dependencies.services import get_kafka_producer, get_redis
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.kafka_producer import KafkaProducerService
 from app.services.rate_limiter import RateLimiter
-from app.dependencies.services import get_redis
 from app.utils.redis_monitor import get_pool_stats
 
 from .config import get_settings
