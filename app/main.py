@@ -5,11 +5,12 @@ from fastapi import Depends, FastAPI, HTTPException, status
 
 from app.api.v1.auth import auth_router
 from app.api.v1.metrics import metric_router
-from app.dependencies.redis import get_redis_client, get_redis_pool
-from app.dependencies.services import get_kafka_producer
+from app.dependencies.redis import get_redis_pool
+from app.dependencies.services import get_kafka_producer, get_redis
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.kafka_producer import KafkaProducerService
 from app.services.rate_limiter import RateLimiter
+from app.utils.redis_monitor import get_pool_stats
 
 from .config import get_settings
 
@@ -24,9 +25,7 @@ async def lifespan(app: FastAPI):
     pool = get_redis_pool()
 
     app.state.redis = redis.Redis(
-        connection_pool=pool,
-        decode_responses=False,
-    )
+        connection_pool=pool)
 
     kafka_service = KafkaProducerService(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP,
@@ -65,7 +64,7 @@ async def health():
 
 @app.get("/health/ready")
 async def health_ready(
-    redis_client: redis.Redis = Depends(get_redis_client),
+    redis_client: redis.Redis = Depends(get_redis),
     producer: KafkaProducerService = Depends(get_kafka_producer),
 ):
     try:
@@ -83,3 +82,21 @@ async def health_ready(
         )
 
     return {"status": "ready", "redis": redis_status, "kafka": kafka_status}
+
+
+@app.get("/admin/redis/stats")
+async def redis_stats():
+    pool = get_redis_pool()
+    stats = await get_pool_stats(pool)
+    # Дополнительно INFO от Redis сервера
+    client = redis.Redis(connection_pool=pool)
+    info = await client.info()
+    return {
+        "pool": stats,
+        "server": {
+            "used_memory": info.get("used_memory"),
+            "used_memory_peak": info.get("used_memory_peak"),
+            "connected_clients": info.get("connected_clients"),
+            "rejected_connections": info.get("rejected_connections"),
+        },
+    }

@@ -21,14 +21,39 @@ class RateLimiter:
     SLIDING_WINDOW_SCRIPT = """
         local key = KEYS[1]
         local limit = tonumber(ARGV[1])
-        local window = tonumber(ARGV[2])
-        local now = tonumber(ARGV[3])
-        redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
-        redis.call('ZADD', key, now, now)
-        local count = redis.call('ZCARD', key)
-        redis.call('EXPIRE', key, window)
-        return count <= limit and 1 or 0
-        """
+        local window_ms = tonumber(ARGV[2])
+        local now_ms = tonumber(ARGV[3])
+        local clear_before = now_ms - window_ms
+
+        -- 1. Очистка старых данных
+        redis.call('ZREMRANGEBYSCORE', key, 0, clear_before)
+
+        -- 2. Проверка текущего количества
+        local current_count = redis.call('ZCARD', key)
+        local allowed = 0
+
+        if current_count < limit then
+            redis.call('ZADD', key, now_ms, now_ms)
+            current_count = current_count + 1
+            allowed = 1
+        end
+
+        -- 3. Обновляем TTL для ключа (в секундах)
+        redis.call('PEXPIRE', key, window_ms / 1000)
+
+        -- 4. Расчет времени до освобождения слота (reset_after)
+        local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+        local reset_after = 0
+        if #oldest > 0 then
+            -- Время сброса = (время самого старого + окно) - сейчас
+            local oldest_score = tonumber(oldest[2])
+            reset_after = math.ceil((oldest_score + window_ms - now_ms) / 1000000)
+        end
+
+        if reset_after < 0 then reset_after = 0 end
+
+        return {allowed, limit - current_count, reset_after}
+    """
 
     def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
@@ -47,37 +72,24 @@ class RateLimiter:
         )
         return result == 1
 
-    async def check_sliding_window(
+    async def check_rate_limit(
         self,
         key: str,
         limit: int = 100,
         window: int = 60,
-    ) -> bool:
+    ) -> dict:
         import time
         now = int(time.time() * 1_000_000)
         window_ms = window * 1_000_000
-        result = await self._sliding_script(
+
+        # ОДИН вызов вместо пяти!
+        res = await self._sliding_script(
             keys=[key],
             args=[limit, window_ms, now],
         )
-        return result == 1
 
-    async def get_remaining(
-        self,
-        key: str,
-        limit: int = 100,
-        window: int = 60,
-    ) -> int:
-        import time
-        now = time.time()
-        await self.redis.zremrangebyscore(key, 0, now - window)
-        current = await self.redis.zcard(key)
-        return max(0, limit - current)
-
-    async def get_reset_time(self, key: str) -> int:
-        oldest = await self.redis.zrange(key, 0, 0, withscores=True)
-        if not oldest:
-            return 0
-        oldest_timestamp = oldest[0][1]
-        ttl = await self.redis.ttl(key)
-        return max(0, ttl)
+        return {
+            "allowed": bool(res[0]),
+            "remaining": res[1],
+            "reset_after": res[2],
+        }
