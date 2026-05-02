@@ -39,17 +39,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         user_id = await self._get_user_id(request)
         key = f"rl:{user_id}:{request.url.path}"
         # Проверяем лимит
-        ratelimit_info = await rate_limiter.check_rate_limit(
+        allowed = await rate_limiter.check_sliding_window(
             key=key,
             limit=self.limit,
             window=self.window,
         )
-
-        allowed = ratelimit_info["allowed"]
-        remaining = ratelimit_info["remaining"]
-        reset_time = ratelimit_info["reset_after"]
-
         if not allowed:
+            # Получаем информацию для заголовков
+            remaining = await rate_limiter.get_remaining(key, self.limit, self.window)
+            reset_time = await rate_limiter.get_reset_time(key)
             logger.warning(
                 "Rate limit exceeded",
                 extra={
@@ -62,17 +60,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={"detail": "Rate limit exceeded"},
+                content={
+                    "detail": "Rate limit exceeded. Try again later.",
+                    "retry_after": reset_time,
+                },
                 headers={
                     "X-RateLimit-Limit": str(self.limit),
                     "X-RateLimit-Remaining": str(remaining),
                     "X-RateLimit-Reset": str(reset_time),
+                    "Retry-After": str(reset_time),
                 },
             )
 
         response = await call_next(request)
         # Добавляем заголовки rate limit в ответ
-
+        remaining = await rate_limiter.get_remaining(key, self.limit, self.window)
+        reset_time = await rate_limiter.get_reset_time(key)
         response.headers["X-RateLimit-Limit"] = str(self.limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         response.headers["X-RateLimit-Reset"] = str(reset_time)
