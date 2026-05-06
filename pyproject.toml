@@ -16,6 +16,7 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "python-multipart>=0.0.22",
     "redis>=7.4.0",
+    "testcontainers[kafka]>=4.14.2",
 ]
 [project.optional-dependencies]
 dev = [
