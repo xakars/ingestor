@@ -1,12 +1,9 @@
-import pytest
-import time
 import json
-from testcontainers.core.container import DockerContainer
-from testcontainers.kafka import KafkaContainer
-from testcontainers.core.waiting_utils import wait_for_logs
-from testcontainers.core.waiting_utils import wait_for_logs
-from testcontainers.core.wait_strategies import LogMessageWaitStrategy
+
+import pytest
 from aiokafka import AIOKafkaConsumer
+from testcontainers.kafka import KafkaContainer
+
 from app.services.kafka_producer import KafkaProducerService
 
 
@@ -23,7 +20,7 @@ async def kafka_service(kafka_container):
 
     service = KafkaProducerService(
         bootstrap_servers=bootstrap_server,
-        topic="test.metrics"
+        topic="test.metrics",
     )
     await service.start()
     service._bootstrap_server = bootstrap_server
@@ -35,7 +32,7 @@ async def kafka_service(kafka_container):
 async def test_send_and_consume_message(kafka_service):
     await kafka_service.send_metrics(
         device_id="test-device-123",
-        metrics_data={"metrics": [{"name": "cpu", "value": 777}]}
+        metrics_data={"metrics": [{"name": "cpu", "value": 777}]},
     )
 
     consumer = AIOKafkaConsumer(
@@ -48,7 +45,7 @@ async def test_send_and_consume_message(kafka_service):
     await consumer.start()
     try:
         async for msg in consumer:
-            #print(msg)
+            # print(msg)
             value = json.loads(msg.value.decode('utf-8'))
             assert value["metrics"][0]["name"] == "cpu"
             break
@@ -63,7 +60,7 @@ async def test_message_ordering(kafka_service):
         bootstrap_servers=kafka_service._bootstrap_server,
         group_id="order-test-group",
         auto_offset_reset="earliest",
-        enable_auto_commit=False
+        enable_auto_commit=False,
     )
     await consumer.start()
 
@@ -72,7 +69,7 @@ async def test_message_ordering(kafka_service):
         for i in range(10):
             await kafka_service.send_metrics(
                 device_id="order-test-device",
-                metrics_data={"sequence": i, "metrics": []}
+                metrics_data={"sequence": i, "metrics": []},
             )
 
         sequences = []

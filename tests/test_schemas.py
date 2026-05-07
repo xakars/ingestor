@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
+
 import pytest
 from pydantic import ValidationError
-from app.schemas.metrics import MetricsPayload, MetricItem, MetricsResponse
-from datetime import datetime, timezone
+
+from app.schemas.metrics import MetricItem, MetricsPayload, MetricsResponse
 
 
 def test_valid_payload(metrics_payload):
@@ -116,7 +118,7 @@ def test_timestamp_default():
     response = MetricsResponse(
         status="accepted",
         request_id="req-123",
-        metrics_count=1
+        metrics_count=1,
     )
     assert response.timestamp is not None
     assert isinstance(response.timestamp, str)

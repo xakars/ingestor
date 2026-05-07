@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from aiokafka.errors import LeaderNotAvailableError
+
+from app.services.kafka_circuit_breaker import CircuitState, KafkaCircuitBreaker
 from app.services.kafka_producer import KafkaProducerService
-from app.services.kafka_circuit_breaker import KafkaCircuitBreaker, CircuitState
-from aiokafka.errors import KafkaError, LeaderNotAvailableError
 
 
 class TestKafkaCircuitBreaker:
@@ -59,7 +61,7 @@ class TestKafkaProducerService:
 
             service = KafkaProducerService(
                 bootstrap_servers='localhost:9092',
-                topic='test.topic'
+                topic='test.topic',
             )
             yield service
 
@@ -69,7 +71,7 @@ class TestKafkaProducerService:
         await kafka_service.start()
         result = await kafka_service.send_metrics(
             device_id="device-123",
-            metrics_data={"metrics": [{"name": "cpu", "value": 45}]}
+            metrics_data={"metrics": [{"name": "cpu", "value": 45}]},
         )
         assert result is True
         mock_producer.send_and_wait.assert_called_once()
@@ -83,7 +85,7 @@ class TestKafkaProducerService:
         with patch.object(kafka_service, '_send_to_dlq', new_callable=AsyncMock) as mock_dlq:
             result = await kafka_service.send_metrics(
                 device_id="device-123",
-                metrics_data={"metrics": [{"name": "cpu", "value": 45}]}
+                metrics_data={"metrics": [{"name": "cpu", "value": 45}]},
             )
             assert result is False
             mock_dlq.assert_called_once()
@@ -97,7 +99,7 @@ class TestKafkaProducerService:
         for i in range(5):
             await kafka_service.send_metrics(
                 device_id=f"device-{i}",
-                metrics_data={"metrics": []}
+                metrics_data={"metrics": []},
             )
         # Circuit breaker должен открыться
         assert kafka_service._circuit_breaker.state == CircuitState.OPEN

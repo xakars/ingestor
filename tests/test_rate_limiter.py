@@ -1,6 +1,7 @@
-import pytest
 import time
-from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from app.services.rate_limiter import RateLimiter
 
 
@@ -75,9 +76,9 @@ class TestReteLimiter:
             allowed = await rate_limiter.check_fixed_window(
                 key=key,
                 limit=100,
-                window=60
+                window=60,
             )
-            assert allowed is True, f"Request {i+1} should be allowed"
+            assert allowed is True, f"Request {i + 1} should be allowed"
 
     @pytest.mark.asyncio
     async def test_requests_out_off_limiter(self, rate_limiter):
@@ -87,7 +88,7 @@ class TestReteLimiter:
             await rate_limiter.check_fixed_window(
                 key=key,
                 limit=100,
-                window=60
+                window=60,
             )
 
         # 101-й запрос должен быть заблокирован

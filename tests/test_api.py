@@ -1,10 +1,10 @@
-import pytest
-
-from fastapi.testclient import TestClient
-from datetime import datetime, timezone
-from app.main import app
 import uuid
+from datetime import datetime, timezone
 
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
 
 client = TestClient(app)
 
@@ -23,8 +23,8 @@ def valid_payload():
         "timestamp": int(datetime.now(timezone.utc).timestamp()),
         "metrics": [
             {"name": "cpu_usage", "value": 45.2},
-            {"name": "memory_usage", "value": 1024}
-        ]
+            {"name": "memory_usage", "value": 1024},
+        ],
     }
 
 
@@ -33,7 +33,7 @@ def test_metrics_ingest_success(valid_token, valid_payload):
     response = client.post(
         "/api/v1/metrics",
         json=valid_payload,
-        headers={"Authorization": valid_token}
+        headers={"Authorization": valid_token},
     )
     assert response.status_code == 202
     assert response.json()["status"] == "accepted"
@@ -45,7 +45,7 @@ def test_invalid_token(valid_payload):
     response = client.post(
         "/api/v1/metrics",
         json=valid_payload,
-        headers={"Authorization": "Bearer invalid_token"}
+        headers={"Authorization": "Bearer invalid_token"},
     )
     assert response.status_code == 401
 
@@ -57,7 +57,7 @@ def test_rate_limit(valid_token, valid_payload):
         response = client.post(
             "/api/v1/metrics",
             json=valid_payload,
-            headers={"Authorization": valid_token}
+            headers={"Authorization": valid_token},
         )
     # 101-й должен получить 429
     assert response.status_code == 429

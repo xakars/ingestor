@@ -1,7 +1,8 @@
-from locust import HttpUser, task, between
-import uuid
-import time
 import random
+import time
+import uuid
+
+from locust import HttpUser, between, task
 
 
 class IngestorUser(HttpUser):
@@ -21,8 +22,8 @@ class IngestorUser(HttpUser):
                 "timestamp": int(time.time()),
                 "metrics": [
                     {"name": "cpu_usage", "value": random.uniform(0, 100)},
-                    {"name": "memory_usage", "value": random.uniform(0, 100)}
-                ]
+                    {"name": "memory_usage", "value": random.uniform(0, 100)},
+                ],
             },
             headers={"Authorization": self.token},
             name="/api/v1/metrics",
