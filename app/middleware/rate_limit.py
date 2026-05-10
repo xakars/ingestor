@@ -2,6 +2,13 @@ import logging
 import time
 import uuid
 
+from app.utils.metrics import (
+    rate_limit_total,
+    rate_limit_blocked,
+    rate_limit_duration,
+    rate_limit_usage
+)
+
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -37,14 +44,27 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
         # Формируем ключ rate limit
         user_id = await self._get_user_id(request)
-        key = f"rl:{user_id}:{request.url.path}"
+        endpoint = request.url.path
+        key = f"rl:{user_id}:{endpoint}"
         # Проверяем лимит
         allowed = await rate_limiter.check_sliding_window(
             key=key,
             limit=self.limit,
             window=self.window,
         )
+        # --- СБОР МЕТРИК ---
+        duration = time.time() - start_time
+        rate_limit_duration.observe(duration)
+
+        rate_limit_total.labels(
+            user_id=user_id,
+            endpoint=endpoint,
+            result='allowed' if allowed else 'blocked'
+        ).inc()
+
         if not allowed:
+            # Счетчик блокировок
+            rate_limit_blocked.labels(user_id=user_id, endpoint=endpoint).inc()
             # Получаем информацию для заголовков
             remaining = await rate_limiter.get_remaining(key, self.limit, self.window)
             reset_time = await rate_limiter.get_reset_time(key)
@@ -75,6 +95,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         # Добавляем заголовки rate limit в ответ
         remaining = await rate_limiter.get_remaining(key, self.limit, self.window)
+        rate_limit_usage.labels(user_id=user_id, endpoint=endpoint).set(self.limit - remaining)
         reset_time = await rate_limiter.get_reset_time(key)
         response.headers["X-RateLimit-Limit"] = str(self.limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
