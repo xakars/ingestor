@@ -1,8 +1,8 @@
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
-from fastapi import Depends, FastAPI, HTTPException, status, Response
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from fastapi import Depends, FastAPI, HTTPException, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.v1.auth import auth_router
 from app.api.v1.metrics import metric_router
@@ -108,5 +108,5 @@ async def redis_stats():
 async def metrics():
     return Response(
         content=generate_latest(),
-        media_type=CONTENT_TYPE_LATEST
+        media_type=CONTENT_TYPE_LATEST,
     )

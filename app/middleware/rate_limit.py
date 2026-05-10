@@ -2,13 +2,6 @@ import logging
 import time
 import uuid
 
-from app.utils.metrics import (
-    rate_limit_total,
-    rate_limit_blocked,
-    rate_limit_duration,
-    rate_limit_usage
-)
-
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -16,6 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
 from app.services.rate_limiter import RateLimiter
 from app.utils.jwt import decode_token
+from app.utils.metrics import rate_limit_blocked, rate_limit_duration, rate_limit_total, rate_limit_usage
 
 logger = logging.getLogger("ingestor")
 settings = get_settings()
@@ -59,7 +53,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         rate_limit_total.labels(
             user_id=user_id,
             endpoint=endpoint,
-            result='allowed' if allowed else 'blocked'
+            result='allowed' if allowed else 'blocked',
         ).inc()
 
         if not allowed:
