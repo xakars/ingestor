@@ -9,6 +9,7 @@ from app.api.v1.metrics import metric_router
 from app.dependencies.redis import get_redis_pool
 from app.dependencies.services import get_kafka_producer, get_redis
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.request_id import RequestIDMiddleware
 from app.services.kafka_producer import KafkaProducerService
 from app.services.rate_limiter import RateLimiter
 from app.utils.redis_monitor import get_pool_stats
@@ -54,6 +55,8 @@ app.add_middleware(
     window=60,
     exclude_paths=['/health/live', '/health/ready', '/metrics'],
 )
+
+app.add_middleware(RequestIDMiddleware)
 
 app.include_router(metric_router)
 app.include_router(auth_router)
