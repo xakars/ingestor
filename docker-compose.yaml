@@ -15,6 +15,7 @@ services:
         condition: service_healthy
     networks:
       - backend
+      - ingestor_elk-network
 
   redis:
     image: redis:8.6.2-alpine
@@ -98,9 +99,25 @@ services:
     networks:
       - backend
 
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:9.4.1
+    user: root
+
+    volumes:
+      - ./infra/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    entrypoint: "filebeat -e --strict.perms=false"
+    depends_on:
+      - ingestor
+    networks:
+      - ingestor_elk-network
+
 networks:
   backend:
     driver: bridge
+  ingestor_elk-network:
+    external: true
 
 volumes:
   redis_data:

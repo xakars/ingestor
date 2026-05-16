@@ -1,0 +1,26 @@
+filebeat.inputs:
+  - type: filestream
+    id: docker-logs-ingestor
+    enabled: true
+    paths:
+      - /var/lib/docker/containers/*/*.log
+
+
+    parsers:
+      - container:
+          stream: all
+
+    processors:
+      - add_docker_metadata: ~
+      - drop_event:
+          when:
+            not:
+              regexp:
+                container.name: ".*ingestor.*"
+
+    fields:
+      service: ingestor
+    fields_under_root: true
+
+output.logstash:
+  hosts: ["logstash:5044"]
