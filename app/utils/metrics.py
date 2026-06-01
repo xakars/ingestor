@@ -3,7 +3,7 @@ from prometheus_client import Counter, Gauge, Histogram
 rate_limit_total = Counter(
     'rate_limit_checks_total',
     'Total rate limit checks',
-    ['user_id', 'endpoint', 'result'],  # result: allowed/blocked
+    ['user_id', 'endpoint', 'result'],
 )
 
 rate_limit_blocked = Counter(

@@ -5,7 +5,6 @@ filebeat.inputs:
     paths:
       - /var/lib/docker/containers/*/*.log
 
-
     parsers:
       - container:
           stream: all
@@ -15,8 +14,8 @@ filebeat.inputs:
       - drop_event:
           when:
             not:
-              regexp:
-                container.name: ".*ingestor.*"
+              equals:
+                container.labels.com_docker_compose_service: "ingestor"
 
     fields:
       service: ingestor

@@ -15,7 +15,6 @@ services:
         condition: service_healthy
     networks:
       - backend
-      - ingestor_elk-network
 
   redis:
     image: redis:8.6.2-alpine
@@ -59,20 +58,20 @@ services:
     networks:
       - backend
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - KAFKA_CLUSTERS_0_NAME=local
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
-      - KAFKA_CLUSTERS_0_METRICS_PORT=9997
-      - DYNAMIC_CONFIG_ENABLED=true  # Позволяет менять настройки через UI
-    depends_on:
-      kafka:
-        condition: service_healthy
-    networks:
-      - backend
+#  kafka-ui:
+#    image: provectuslabs/kafka-ui:latest
+#    ports:
+#      - "8080:8080"
+#    environment:
+#      - KAFKA_CLUSTERS_0_NAME=local
+#      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+#      - KAFKA_CLUSTERS_0_METRICS_PORT=9997
+#      - DYNAMIC_CONFIG_ENABLED=true  # Позволяет менять настройки через UI
+#    depends_on:
+#      kafka:
+#        condition: service_healthy
+#    networks:
+#      - backend
 
   prometheus:
     image: prom/prometheus:latest
@@ -99,28 +98,35 @@ services:
     networks:
       - backend
 
-  filebeat:
-    image: docker.elastic.co/beats/filebeat:9.4.1
-    user: root
-
+  loki:
+    image: grafana/loki:3.7.2
+    user: "0"
+    ports:
+      - "3100:3100"
     volumes:
-      - ./infra/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    entrypoint: "filebeat -e --strict.perms=false"
-    depends_on:
-      - ingestor
+      - ./infra/loki/loki-config.yml:/etc/loki/local-config.yml
+      - loki_data:/var/loki
+    command: -config.file=/etc/loki/local-config.yml
     networks:
-      - ingestor_elk-network
+      - backend
+
+  promtail:
+    image: grafana/promtail:3.6.11
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./infra/promtail/config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - backend
 
 networks:
   backend:
     driver: bridge
-  ingestor_elk-network:
-    external: true
+
 
 volumes:
   redis_data:
   kafka_data:
   prometheus_data:
   grafana_data:
+  loki_data:
